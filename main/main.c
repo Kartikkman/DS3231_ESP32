@@ -22,7 +22,7 @@ As the program is based on UART protocol :
 #include"string.h"
 #include"driver/i2c.h"
 #include"config.h"
-
+#include"fonts.h"
 
 
 void uart_config();
@@ -31,19 +31,26 @@ char * bcd_char(uint8_t  *arr,int length_arr);
 uint8_t *convert_bcd(uint8_t *arr);
 char * DS3231_get_time();
 void DS3231_update_time(uint8_t *addr_register_write,uint8_t *data_register_write);
+i2c_cmd_handle_t SSD_stat_comm();
+void SSD_command(uint8_t command);
+void SSD_initialize();
+void SSD_push_mat();
+void set_GDRAM();
 
-char *opt_msg = "\r\n\r\n****DS3231 Testing ****\r\n1.What's Time ??\r\n2.Update REG @ DS3231\r\n\r\n";
+
+char *opt_msg = "\r\n\r\n****SSD1306 Testing ****\r\n1.Initialize Display\r\n2.Turn ON the Display ??\r\n3.Turn  OFF the Display \r\n4.Send Data '1'\r\n5.Send Data '0'\r\n7.Send a char to Display \r\n";
 
 static void test()
 {
-    const int bytes_read_i2c = 6;                                                                        // Bytes Read at ONE GO from DS3231
-    const int bytes_read_uart = 1;
+   // const int bytes_read_i2c = 6;                                                                        // Bytes Read at ONE GO from DS3231
+   // const int bytes_read_uart = 1;
 
     uint8_t *receive_data_uart = (uint8_t *) malloc(sizeof(uint8_t) * 8);
 
     int choice = 0;
     uart_config();
     configure_I2C();
+    int row= 0, col = 0 ,colum = 0;
     
       
    while(1)
@@ -53,7 +60,8 @@ static void test()
         uart_flush(UART_NUM_1);
         
         int response = uart_read_bytes(UART_NUM_1,receive_data_uart,1 ,portMAX_DELAY);                    // Receiving 1 byte of character  
-        char *delimiter = ",";
+        //char *delimiter = ",";
+
 
 
         if( response >0)
@@ -64,48 +72,135 @@ static void test()
             {
                 case 1 :
                 {
+                      // i2c_cmd_handle_t handle = SSD_stat_comm();                                           // this gives use the Handle for I2C , furhter function calls would be based upon this ( as they would be rquiring the handle ) 
+                       SSD_initialize();
+                      // i2c_cmd_link_delete(handle);                                                                 // Putting out the DIsplay ON command 
 
-                        char * result = DS3231_get_time();                                                  // Getting a pointer to the Time received in string format 
-
-                            for(int value =0 ; value <= bytes_read_i2c*2;value = value + 2) 
-                            {
-
-                                uart_write_bytes(UART_NUM_1,result+value ,2);   
-                                uart_write_bytes(UART_NUM_1,delimiter,1);
-
-                            } 
-
-                            free(result);
-
-                        
                 }break;
                 
                 case 2:{
 
-                            char *response = "\r\nSend Address where Data is to be written ";
-                            uart_write_bytes(UART_NUM_1,response,strlen(response));                                       // Sending the feedback Message ( Response )                  
-                            uart_read_bytes(UART_NUM_1,receive_data_uart,bytes_read_uart ,portMAX_DELAY);                 // Reading byte of data    
-                            uint8_t addr_register_write = receive_data_uart[0];
-                            addr_register_write = (addr_register_write) - '0';
-
-                            response = "\r\n Send the Data to be written ";                                               // Receiving the Data from the UART , to be sent over I2C 
-                             uart_write_bytes(UART_NUM_1,response,strlen(response));                                      // Sending the feedback Message ( Response )                  
-                             uart_read_bytes(UART_NUM_1,receive_data_uart,bytes_read_uart + 1,portMAX_DELAY);                              // Reading byte of data    
-                            uint8_t *data_register_write = receive_data_uart;
-
-                            data_register_write = convert_bcd(data_register_write);
-
-                            DS3231_update_time(&addr_register_write,data_register_write);
+                       //i2c_cmd_handle_t handle = SSD_stat_comm();                                           // this gives use the Handle for I2C , furhter function calls would be based upon this ( as they would be rquiring the handle ) 
+                       SSD_command(DISPLAY_ON);
+                       //i2c_cmd_link_delete(handle);    
+                            
 
                          }break;
+                case 3: {
+
+                        SSD_command(DISPLAY_OFF);
 
 
+                        }break;
+
+                case 4:{
+
+                        // Initialising the matrix with zeroes 
+                        int row= 0 , col = 0; 
+                        for ( row = 0 ; row <= 7 ; row ++)
+                        {
+                            for( col =0 ; col < 128 ; col ++)
+                            {
+                                mat[row][col] = 255 ; 
+
+                            }
+
+                        }
+
+                        SSD_push_mat();
+
+                         }break;
+                case 5:{
+
+                        // int row= 0 , col = 0; 
+                        // for ( row = 0 ; row <= 7 ; row ++)
+                        // {
+                        //     for( col =0 ; col < 128 ; col ++)
+                        //     {
+                        //         mat[row][col] = 0 ; 
+
+                        //     }
+                        // }
+                        int index =0;
+                        for (int index =0 ;index < 8; index ++)
+                        mat[0][index] =font_3[index + 344];
+
+                        SSD_push_mat();
+
+                }break;
+                case 6 :{
+
+                            uint8_t *data = (uint8_t *) malloc(sizeof(uint8_t));
+                            uart_read_bytes(UART_NUM_1,data,1,portMAX_DELAY);
+                            data[0] = data[0] - '0';
+                            SSD_push_data(*data);
+
+                }break;
+                case 7:{
+                            
+                            
+                            uint8_t *data = (uint8_t *) malloc(sizeof(uint8_t));
+                            uart_read_bytes(UART_NUM_1,data,1,portMAX_DELAY);
+                            
+                            // Chracter K is locatex at pos 424 to 431 , &  currently using 8*8 fonts then we will be displaying those
+                            int font_index = 0; 
+                            font_index = (data[0] - 32) * 8;
+                            int col_bound = col + 8 ;
+
+                            if(col_bound > 128)
+                            {
+                                col = 0 ; 
+                                col_bound = 8;
+                                row ++ ;
+                            }
+
+                            for(colum = col ; colum < col_bound;colum ++)
+                            {
+                                mat[row][colum] = font_3[font_index];
+                                font_index ++ ;
+
+                            }
+
+                            col = colum + 1;            // Plus 1 is for adding some space b/w two characters . 
+                            SSD_push_mat();
+
+                }break;
+                case 8:
+                {
+                            // For making the GDRAM point to the starting location 
+                            set_GDRAM();
+
+
+
+                }break;
+                case 9:
+                {
+
+                        SSD_INVERT();
+                        
+
+                }break;
+                case 10:
+                {
+
+                        SSD_NORMAL();
+
+                }break;
                 default :{
+
+                          draw_message("Watch Dog  ",5,5,strlen("Watch Dog  "));
+                          draw_message("Work in Progress...",5,15,strlen("Work in Progress..."));
+                          draw_message("Launching Soon..",5,25,strlen("Launching Soon"));
+                          draw_message("Hackster.io",5,35,strlen("Hackster.io"));
+                          
+                          
+                          SSD_push_mat();
                              char *response = "Invalid Option";
                              uart_write_bytes(UART_NUM_1,response,strlen(response));
                         }
                         break;
             }
+ 
 
  
     
