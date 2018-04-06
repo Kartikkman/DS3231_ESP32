@@ -1,0 +1,21 @@
+/*
+
+While Designing the Touch Interface , there are Capacitive GPIOs place together on the PCB . 
+
+Touch ( Selection ) : For single point touh , for the motive of selection . One needs to put his finger on the TOuch Pad ( one or may be a set of those ) then 
+remove his finger from the pad . 
+
+Sliding : For the Sliding , one puts his finger on the Touch pad then the other gpios are touched in a continous manner , Finger is then removed off from the 
+last touch pad . 
+
+Note : TOuch pad should be kept close as there needs to be continous touch on the pads ( for the Sliding purpose ) or else the selection is considered . 
+
+
+Feartures to be included : 
+1. Selection 
+2. Right Scroll 
+3. Left Scroll 
+4. Touch for long interval ( this would take the user to home screen ) 
+
+
+*/
